@@ -45,6 +45,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
           <label>Throws: <input type="number" id="ht" value="8"></label>
           <label>Offsides: <input type="number" id="ho" value="1"></label>
           <label>Penalties: <input type="number" id="hp" value="1"></label>
+          <label>Fouls: <input type="number" id="hf" value="12"></label>
         </div>
         <div class="team-section">
           <h3>Away Team</h3>
@@ -54,6 +55,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
           <label>Throws: <input type="number" id="at" value="6"></label>
           <label>Offsides: <input type="number" id="ao" value="2"></label>
           <label>Penalties: <input type="number" id="ap" value="0"></label>
+          <label>Fouls: <input type="number" id="af" value="8"></label>
         </div>
       </div>
       <button id="calcBtn" style="margin-top:15px;">Calculate Bias Score</button>
@@ -79,6 +81,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
 <script>
 var s = 50;
 var WC_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNGE1MmM5YjMwMTVlNWJmM2ViZTU3NCIsImlhdCI6MTc4MzI1NTc4MywiZXhwIjoxNzkwNTEzMzgzfQ.4Fvylt8oovD-9b1FWLWwjpPKubBHzsvsZKBD2coP_dA";
+var shown = [];
 
 document.getElementById("loadBtn").addEventListener("click", function() {
   document.getElementById("fixtures").innerHTML = "Loading...";
@@ -87,9 +90,8 @@ document.getElementById("loadBtn").addEventListener("click", function() {
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
-    var games = data.games || [];
-    var html = "<div style='color:#d4a843; margin-bottom:5px;'>Loaded " + games.length + " matches</div>";
-    var shown = games.slice(0, 20);
+    shown = (data.games || []).slice(0, 20);
+    var html = "<div style='color:#d4a843; margin-bottom:5px;'>Loaded " + shown.length + " matches</div>";
     shown.forEach(function(m, i) {
       var score = m.time_elapsed === "finished" ? m.home_score + "-" + m.away_score : m.time_elapsed;
       html += "<div style='padding:8px; border-bottom:1px solid #2a4a36; cursor:pointer;' data-i='" + i + "'>";
@@ -101,8 +103,9 @@ document.getElementById("loadBtn").addEventListener("click", function() {
     document.getElementById("fixtures").querySelectorAll("div[data-i]").forEach(function(el) {
       el.addEventListener("click", function() {
         var i = parseInt(el.getAttribute("data-i"));
-        document.getElementById("home").value = shown[i].home_team_name_en;
-        document.getElementById("away").value = shown[i].away_team_name_en;
+        var m = shown[i];
+        document.getElementById("home").value = m.home_team_name_en;
+        document.getElementById("away").value = m.away_team_name_en;
       });
     });
   })
@@ -118,41 +121,61 @@ document.getElementById("calcBtn").addEventListener("click", function() {
   var ht = +document.getElementById("ht").value || 0;
   var ho = +document.getElementById("ho").value || 0;
   var hp = +document.getElementById("hp").value || 0;
+  var hf = +document.getElementById("hf").value || 0;
   var ay = +document.getElementById("ay").value || 0;
   var ar = +document.getElementById("ar").value || 0;
   var ac = +document.getElementById("ac").value || 0;
   var at = +document.getElementById("at").value || 0;
   var ao = +document.getElementById("ao").value || 0;
   var ap = +document.getElementById("ap").value || 0;
+  var af = +document.getElementById("af").value || 0;
 
   var hCards = hy + (hr * 3);
   var aCards = ay + (ar * 3);
   var totalCards = hCards + aCards;
   var cardScore = totalCards === 0 ? 50 : (aCards / totalCards) * 100;
+
   var totalCorners = hc + ac;
   var cornerScore = totalCorners === 0 ? 50 : (ac / totalCorners) * 100;
+
   var totalThrows = ht + at;
   var throwScore = totalThrows === 0 ? 50 : (at / totalThrows) * 100;
+
   var totalOffsides = ho + ao;
   var offsideScore = totalOffsides === 0 ? 50 : (ao / totalOffsides) * 100;
+
   var totalPenalties = hp + ap;
   var penaltyScore = totalPenalties === 0 ? 50 : (ap / totalPenalties) * 100;
 
-  s = Math.round((cardScore*0.3)+(cornerScore*0.2)+(throwScore*0.1)+(offsideScore*0.2)+(penaltyScore*0.2));
+  var totalFouls = hf + af;
+  var foulScore = totalFouls === 0 ? 50 : (af / totalFouls) * 100;
+
+  s = Math.round(
+    (cardScore * 0.25) +
+    (cornerScore * 0.15) +
+    (throwScore * 0.1) +
+    (offsideScore * 0.15) +
+    (penaltyScore * 0.2) +
+    (foulScore * 0.15)
+  );
+
   document.getElementById("score").textContent = s;
   document.getElementById("breakdown").innerHTML =
-    "Cards: " + cardScore.toFixed(1) + "% (x0.3)<br>" +
-    "Corners: " + cornerScore.toFixed(1) + "% (x0.2)<br>" +
-    "Throws: " + throwScore.toFixed(1) + "% (x0.1)<br>" +
-    "Offsides: " + offsideScore.toFixed(1) + "% (x0.2)<br>" +
-    "Penalties: " + penaltyScore.toFixed(1) + "% (x0.2)<br>" +
+    "Cards: " + cardScore.toFixed(1) + "% (x0.25)<br>" +
+    "Corners: " + cornerScore.toFixed(1) + "% (x0.15)<br>" +
+    "Throws: " + throwScore.toFixed(1) + "% (x0.10)<br>" +
+    "Offsides: " + offsideScore.toFixed(1) + "% (x0.15)<br>" +
+    "Penalties: " + penaltyScore.toFixed(1) + "% (x0.20)<br>" +
+    "Fouls: " + foulScore.toFixed(1) + "% (x0.15)<br>" +
     "<strong style='color:#d4a843;'>Final: " + s + "</strong>";
   log("Score: " + s);
 });
 
 document.getElementById("connectBtn").addEventListener("click", function() {
   log("Connecting...");
+  var tries = 0;
   var interval = setInterval(function() {
+    tries++;
     if (window.solana) {
       clearInterval(interval);
       window.solana.connect().then(function(r) {
@@ -162,8 +185,8 @@ document.getElementById("connectBtn").addEventListener("click", function() {
         log("Error: " + e.message);
       });
     }
+    if (tries > 50) clearInterval(interval);
   }, 100);
-  setTimeout(function() { clearInterval(interval); }, 5000);
 });
 
 document.getElementById("submitBtn").addEventListener("click", function() {
