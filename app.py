@@ -1,8 +1,66 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+import requests
+import json
 
 app = Flask(__name__)
 
-HTML = '''<!DOCTYPE html>
+TXLINE_API = "https://txline-dev.txodds.com"
+
+@app.route('/api/txline/auth')
+def get_auth():
+    try:
+        res = requests.post(f"{TXLINE_API}/auth/guest/start", timeout=5)
+        jwt_token = res.json().get('token')
+        return jsonify({'success': bool(jwt_token), 'token': jwt_token})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/txline/fixtures')
+def get_fixtures():
+    try:
+        # Get guest JWT
+        auth_res = requests.post(f"{TXLINE_API}/auth/guest/start", timeout=5)
+        jwt_token = auth_res.json().get('token')
+        
+        if not jwt_token:
+            # Fallback: mock data
+            fixtures = [
+                {'home_team': 'Turkey', 'away_team': 'Brazil', 'status': 'scheduled'},
+                {'home_team': 'Argentina', 'away_team': 'France', 'status': 'scheduled'},
+            ]
+            return jsonify({'fixtures': fixtures})
+        
+        # Get real fixtures from TxLINE
+        headers = {
+            'Authorization': f'Bearer {jwt_token}',
+            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0'
+        }
+        
+        fixtures_res = requests.get(
+            f"{TXLINE_API}/api/fixtures",
+            headers=headers,
+            params={'league': 'WORLD_CUP'},
+            timeout=5
+        )
+        
+        if fixtures_res.status_code == 200:
+            fixtures = fixtures_res.json()[:10]  # First 10
+            return jsonify({'fixtures': fixtures, 'source': 'TxLINE'})
+        else:
+            # Fallback if API fails
+            fixtures = [
+                {'home_team': 'Turkey', 'away_team': 'Brazil', 'status': 'scheduled'},
+                {'home_team': 'Argentina', 'away_team': 'France', 'status': 'scheduled'},
+            ]
+            return jsonify({'fixtures': fixtures, 'source': 'mock'})
+            
+    except Exception as e:
+        return jsonify({'fixtures': [], 'error': str(e), 'source': 'error'}), 500
+
+@app.route('/')
+def home():
+    return '''<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -91,15 +149,21 @@ let s = 50;
 
 async function loadFixtures() {
   try {
-    log('Loading fixtures...', false);
+    log('Loading fixtures from TxLINE...', false);
     const res = await fetch('/api/txline/fixtures');
     const data = await res.json();
-    log('✓ Loaded ' + data.fixtures.length + ' matches', false);
+    
+    if (data.error) {
+      log('⚠️ Using mock data: ' + data.error, false);
+    } else {
+      log('✓ Loaded ' + data.fixtures.length + ' matches from ' + (data.source || 'API'), false);
+    }
+    
     let html = '';
-    data.fixtures.forEach(m => {
-      html += '<div style="padding:8px; border-bottom:1px solid #2a4a36;"><strong>' + m.home_team + ' vs ' + m.away_team + '</strong> - ' + m.status + '</div>';
+    (data.fixtures || []).forEach(m => {
+      html += '<div style="padding:8px; border-bottom:1px solid #2a4a36;"><strong>' + (m.home_team || 'TBD') + ' vs ' + (m.away_team || 'TBD') + '</strong> - ' + (m.status || 'unknown') + '</div>';
     });
-    document.getElementById('fixtures').innerHTML = html;
+    document.getElementById('fixtures').innerHTML = html || '<div style="padding:10px;">No fixtures available</div>';
   } catch(e) {
     log('✗ ' + e.message, false);
   }
@@ -185,9 +249,6 @@ function log(msg, bottom = false) {
   const status = document.getElementById('status');
   if (bottom) {
     status.appendChild(div);
-  } else {
-    const fixtures = document.getElementById('fixtures');
-    fixtures.insertAdjacentElement('afterend', div);
   }
 }
 
@@ -195,20 +256,7 @@ calc();
 </script>
 </body>
 </html>
-'''
-
-@app.route('/')
-def home():
-    return HTML
-
-@app.route('/api/txline/fixtures')
-def get_fixtures():
-    fixtures = [
-        {'home_team': 'Turkey', 'away_team': 'Brazil', 'status': 'scheduled'},
-        {'home_team': 'Argentina', 'away_team': 'France', 'status': 'scheduled'},
-        {'home_team': 'Germany', 'away_team': 'England', 'status': 'live'},
-    ]
-    return jsonify({'fixtures': fixtures})
+    '''
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
