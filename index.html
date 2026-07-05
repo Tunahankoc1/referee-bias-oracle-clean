@@ -17,6 +17,9 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
 #fixtures { font-size: 11px; border: 1px solid #2a4a36; padding: 10px; margin: 10px 0; max-height: 300px; overflow-y: auto; }
 .team-section { background: #0d1f17; border: 1px solid #2a4a36; padding: 15px; }
 .team-section h3 { font-size: 14px; margin: 0 0 10px 0; color: #d4a843; }
+.fixture-item { padding: 8px; border-bottom: 1px solid #2a4a36; cursor: pointer; }
+.fixture-item:hover { background: #1a3a2a; }
+.live-badge { background: #10b981; color: #000; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 </style>
 </head>
 <body>
@@ -24,7 +27,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
 <p style="color:#b9c4ba; font-size:12px;">Program: DQvUS9W1q6scsf2w5mLXcZfsvkf645pKYYQN8p6rhsMq | TxLINE Powered</p>
 
 <div class="panel">
-  <h2>TxLINE World Cup (Live Data)</h2>
+  <h2>TxLINE World Cup Fixtures</h2>
   <button id="loadBtn">Load Fixtures from TxLINE</button>
   <div id="fixtures"></div>
 </div>
@@ -33,29 +36,29 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
   <div>
     <div class="panel">
       <h2>Match & Referee Decisions</h2>
-      <label>Match ID: <input type="text" id="matchid" value="Match-001"></label>
-      <label>Home Team: <input type="text" id="home" value="Turkey"></label>
-      <label>Away Team: <input type="text" id="away" value="Brazil"></label>
+      <label>Match ID: <input type="text" id="matchid" value=""></label>
+      <label>Home Team: <input type="text" id="home" value=""></label>
+      <label>Away Team: <input type="text" id="away" value=""></label>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;">
         <div class="team-section">
           <h3>Home Team</h3>
-          <label>Yellow Cards: <input type="number" id="hy" value="2"></label>
+          <label>Yellow Cards: <input type="number" id="hy" value="0"></label>
           <label>Red Cards: <input type="number" id="hr" value="0"></label>
-          <label>Corners: <input type="number" id="hc" value="5"></label>
-          <label>Throws: <input type="number" id="ht" value="8"></label>
-          <label>Offsides: <input type="number" id="ho" value="1"></label>
-          <label>Penalties: <input type="number" id="hp" value="1"></label>
-          <label>Fouls: <input type="number" id="hf" value="12"></label>
+          <label>Corners: <input type="number" id="hc" value="0"></label>
+          <label>Throws: <input type="number" id="ht" value="0"></label>
+          <label>Offsides: <input type="number" id="ho" value="0"></label>
+          <label>Penalties: <input type="number" id="hp" value="0"></label>
+          <label>Fouls: <input type="number" id="hf" value="0"></label>
         </div>
         <div class="team-section">
           <h3>Away Team</h3>
-          <label>Yellow Cards: <input type="number" id="ay" value="5"></label>
+          <label>Yellow Cards: <input type="number" id="ay" value="0"></label>
           <label>Red Cards: <input type="number" id="ar" value="0"></label>
-          <label>Corners: <input type="number" id="ac" value="3"></label>
-          <label>Throws: <input type="number" id="at" value="6"></label>
-          <label>Offsides: <input type="number" id="ao" value="2"></label>
+          <label>Corners: <input type="number" id="ac" value="0"></label>
+          <label>Throws: <input type="number" id="at" value="0"></label>
+          <label>Offsides: <input type="number" id="ao" value="0"></label>
           <label>Penalties: <input type="number" id="ap" value="0"></label>
-          <label>Fouls: <input type="number" id="af" value="8"></label>
+          <label>Fouls: <input type="number" id="af" value="0"></label>
         </div>
       </div>
       <button id="calcBtn" style="margin-top:15px;">Calculate Bias Score</button>
@@ -65,7 +68,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
   <div>
     <div class="panel">
       <h2>Fairness Score</h2>
-      <div class="score" id="score">50</div>
+      <div class="score" id="score">-</div>
       <div id="verdict"></div>
       <div id="breakdown"></div>
       <div style="margin-top:20px;">
@@ -83,47 +86,121 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
 <script>
 var s = 50;
 var wallet = null;
+var txlineJwt = null;
 var API_TOKEN = "txoracle_api_e44c346212fe433c8b42b4bae17ce33d";
 var TXLINE = "https://txline-dev.txodds.com";
+
+async function getTxLineJwt() {
+  if (txlineJwt) return txlineJwt;
+  var res = await fetch(TXLINE + "/auth/guest/start", { method: "POST" });
+  var data = await res.json();
+  txlineJwt = data.token;
+  return txlineJwt;
+}
 
 document.getElementById("loadBtn").addEventListener("click", async function() {
   document.getElementById("fixtures").innerHTML = "Loading from TxLINE...";
   try {
-    // Get JWT
-    const authRes = await fetch(TXLINE + "/auth/guest/start", { method: "POST" });
-    const authData = await authRes.json();
-    const jwt = authData.token;
-
-    // Get fixtures
-    const res = await fetch(TXLINE + "/api/fixtures/snapshot", {
+    var jwt = await getTxLineJwt();
+    var res = await fetch(TXLINE + "/api/fixtures/snapshot", {
       headers: {
         "Authorization": "Bearer " + jwt,
         "X-Api-Token": API_TOKEN
       }
     });
-    const data = await res.json();
+    var data = await res.json();
+    var fixtures = data.filter(function(f) { return f.Competition === "World Cup"; });
 
-    // Filter World Cup
-    const fixtures = data.filter(function(f) { return f.Competition === "World Cup"; });
-    
-    var html = "<div style='color:#d4a843; margin-bottom:5px;'>✓ " + fixtures.length + " World Cup matches from TxLINE</div>";
+    var html = "<div style='color:#d4a843; margin-bottom:8px;'>✓ " + fixtures.length + " World Cup matches from TxLINE</div>";
     fixtures.forEach(function(f) {
-      var status = f.GameState === 1 ? "<span style='color:#10b981;'>LIVE</span>" : "<span style='color:#b9c4ba;'>Scheduled</span>";
-      html += "<div style='padding:8px; border-bottom:1px solid #2a4a36; cursor:pointer;' onclick='selectMatch(\"" + f.Participant1 + "\",\"" + f.Participant2 + "\",\"" + f.FixtureId + "\")'>" +
-        "<strong>" + f.Participant1 + " vs " + f.Participant2 + "</strong> " + status +
-        "</div>";
+      var isLive = f.GameState === 1;
+      html += "<div class='fixture-item' data-id='" + f.FixtureId + "' data-home='" + f.Participant1 + "' data-away='" + f.Participant2 + "'>";
+      html += "<strong>" + f.Participant1 + " vs " + f.Participant2 + "</strong>";
+      if (isLive) html += "<span class='live-badge'>LIVE</span>";
+      html += "<small style='color:#b9c4ba; margin-left:8px;'>ID: " + f.FixtureId + "</small>";
+      html += "</div>";
     });
     document.getElementById("fixtures").innerHTML = html;
+
+    document.querySelectorAll(".fixture-item").forEach(function(el) {
+      el.addEventListener("click", async function() {
+        var fixtureId = el.getAttribute("data-id");
+        var home = el.getAttribute("data-home");
+        var away = el.getAttribute("data-away");
+        document.getElementById("home").value = home;
+        document.getElementById("away").value = away;
+        document.getElementById("matchid").value = fixtureId;
+        log("Selected: " + home + " vs " + away + " (ID: " + fixtureId + ")");
+        log("Loading stats from TxLINE...");
+        await loadStats(fixtureId);
+      });
+    });
+
   } catch(e) {
-    document.getElementById("fixtures").innerHTML = "<div style='color:red;'>Error: " + e.message + "</div>";
+    document.getElementById("fixtures").innerHTML = "Error: " + e.message;
   }
 });
 
-function selectMatch(home, away, fixtureId) {
-  document.getElementById("home").value = home;
-  document.getElementById("away").value = away;
-  document.getElementById("matchid").value = fixtureId;
-  log("Selected: " + home + " vs " + away);
+async function loadStats(fixtureId) {
+  try {
+    var jwt = await getTxLineJwt();
+    var res = await fetch(TXLINE + "/api/scores/historical/" + fixtureId, {
+      headers: {
+        "Authorization": "Bearer " + jwt,
+        "X-Api-Token": API_TOKEN
+      }
+    });
+    var data = await res.json();
+
+    if (!data || data.length === 0) {
+      log("No stats yet — match may not have started");
+      return;
+    }
+
+    log("✓ Stats loaded from TxLINE!");
+    log("Raw data: " + JSON.stringify(data).slice(0, 200));
+
+    // Parse stats
+    var homeYellow = 0, awayYellow = 0;
+    var homeRed = 0, awayRed = 0;
+    var homeCorners = 0, awayCorners = 0;
+    var homeFouls = 0, awayFouls = 0;
+    var homeOffsides = 0, awayOffsides = 0;
+    var homePenalties = 0, awayPenalties = 0;
+
+    data.forEach(function(event) {
+      var type = (event.Type || event.type || "").toLowerCase();
+      var team = event.Team || event.team || event.Participant || "";
+      var homeTeam = document.getElementById("home").value;
+
+      var isHome = team === homeTeam || team === "1" || team === 1;
+
+      if (type.includes("yellow")) { isHome ? homeYellow++ : awayYellow++; }
+      if (type.includes("red")) { isHome ? homeRed++ : awayRed++; }
+      if (type.includes("corner")) { isHome ? homeCorners++ : awayCorners++; }
+      if (type.includes("foul")) { isHome ? homeFouls++ : awayFouls++; }
+      if (type.includes("offside")) { isHome ? homeOffsides++ : awayOffsides++; }
+      if (type.includes("penalty")) { isHome ? homePenalties++ : awayPenalties++; }
+    });
+
+    document.getElementById("hy").value = homeYellow;
+    document.getElementById("hr").value = homeRed;
+    document.getElementById("hc").value = homeCorners;
+    document.getElementById("hf").value = homeFouls;
+    document.getElementById("ho").value = homeOffsides;
+    document.getElementById("hp").value = homePenalties;
+    document.getElementById("ay").value = awayYellow;
+    document.getElementById("ar").value = awayRed;
+    document.getElementById("ac").value = awayCorners;
+    document.getElementById("af").value = awayFouls;
+    document.getElementById("ao").value = awayOffsides;
+    document.getElementById("ap").value = awayPenalties;
+
+    log("✓ Stats auto-filled from TxLINE!");
+
+  } catch(e) {
+    log("Stats error: " + e.message);
+  }
 }
 
 document.getElementById("calcBtn").addEventListener("click", function() {
