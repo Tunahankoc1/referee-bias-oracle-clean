@@ -1,35 +1,36 @@
-from flask import Flask, jsonify
+from flask import Flask, send_from_directory, jsonify
 import requests
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='')
+
 TXLINE_API = "https://txline-dev.txodds.com"
 
 @app.route('/')
 def home():
-    return '''<!DOCTYPE html>
+    return send_from_directory('.', 'index.html')
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Referee Bias Oracle</title>
-    <meta name="description" content="Referee Bias Oracle — built on Replit. Update this description to reflect the app." />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Referee Bias Oracle" />
-    <meta property="og:description" content="Referee Bias Oracle — built on Replit. Update this description to reflect the app." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Referee Bias Oracle" />
-    <meta name="twitter:description" content="Referee Bias Oracle — built on Replit. Update this description to reflect the app." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-DGYp1BKe.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BrejmkjU.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  <script src="https://replit-cdn.com/replit-pill/replit-pill.global.js" data-referral-code="5wkhx8p2fip4" data-repl-id="57272bba-b56c-4f68-a48e-9011586db099"></script></body>
-</html>
+@app.route('/api/txline/fixtures')
+def get_fixtures():
+    try:
+        auth_res = requests.post(f"{TXLINE_API}/auth/guest/start", timeout=10)
+        jwt_token = auth_res.json().get('token')
+        
+        if not jwt_token:
+            return jsonify({'error': 'JWT failed'}), 500
+        
+        fixtures_res = requests.get(
+            f"{TXLINE_API}/api/fixtures",
+            headers={'Authorization': f'Bearer {jwt_token}'},
+            params={'league': 'WORLD_CUP'},
+            timeout=10
+        )
+        
+        fixtures = fixtures_res.json() if fixtures_res.status_code == 200 else []
+        return jsonify({'success': True, 'fixtures': fixtures[:20]})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
