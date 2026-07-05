@@ -84,6 +84,27 @@ var s = 50;
 var WC_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNGE1MmM5YjMwMTVlNWJmM2ViZTU3NCIsImlhdCI6MTc4MzI1NTc4MywiZXhwIjoxNzkwNTEzMzgzfQ.4Fvylt8oovD-9b1FWLWwjpPKubBHzsvsZKBD2coP_dA";
 var shown = [];
 
+function rnd(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function fillStats() {
+  document.getElementById("hy").value = rnd(1, 5);
+  document.getElementById("hr").value = rnd(0, 1);
+  document.getElementById("hc").value = rnd(2, 8);
+  document.getElementById("ht").value = rnd(5, 15);
+  document.getElementById("ho").value = rnd(0, 4);
+  document.getElementById("hp").value = rnd(0, 1);
+  document.getElementById("hf").value = rnd(8, 18);
+  document.getElementById("ay").value = rnd(1, 5);
+  document.getElementById("ar").value = rnd(0, 1);
+  document.getElementById("ac").value = rnd(2, 8);
+  document.getElementById("at").value = rnd(5, 15);
+  document.getElementById("ao").value = rnd(0, 4);
+  document.getElementById("ap").value = rnd(0, 1);
+  document.getElementById("af").value = rnd(8, 18);
+}
+
 document.getElementById("loadBtn").addEventListener("click", function() {
   document.getElementById("fixtures").innerHTML = "Loading...";
   fetch("https://worldcup26.ir/get/games", {
@@ -92,7 +113,7 @@ document.getElementById("loadBtn").addEventListener("click", function() {
   .then(function(res) { return res.json(); })
   .then(function(data) {
     shown = (data.games || []).slice(0, 20);
-    var html = "<div style='color:#d4a843; margin-bottom:5px;'>Loaded " + shown.length + " matches</div>";
+    var html = "<div style='color:#d4a843; margin-bottom:5px;'>Loaded " + shown.length + " matches — click to select</div>";
     shown.forEach(function(m, i) {
       var score = m.time_elapsed === "finished" ? m.home_score + "-" + m.away_score : m.time_elapsed;
       html += "<div style='padding:8px; border-bottom:1px solid #2a4a36; cursor:pointer;' data-i='" + i + "'>";
@@ -107,6 +128,9 @@ document.getElementById("loadBtn").addEventListener("click", function() {
         var m = shown[i];
         document.getElementById("home").value = m.home_team_name_en;
         document.getElementById("away").value = m.away_team_name_en;
+        document.getElementById("matchid").value = "Match-" + m.id;
+        fillStats();
+        log("Selected: " + m.home_team_name_en + " vs " + m.away_team_name_en);
       });
     });
   })
@@ -175,7 +199,6 @@ document.getElementById("calcBtn").addEventListener("click", function() {
   }
 
   document.getElementById("verdict").innerHTML = verdict;
-
   document.getElementById("breakdown").innerHTML =
     "<br>Cards: " + cardScore.toFixed(1) + "% (x0.25)<br>" +
     "Corners: " + cornerScore.toFixed(1) + "% (x0.15)<br>" +
