@@ -1,5 +1,4 @@
 from flask import Flask, jsonify
-import requests
 
 app = Flask(__name__)
 
@@ -10,16 +9,20 @@ HTML = '''<!DOCTYPE html>
 <title>Referee Bias Oracle</title>
 <style>
 body { background: #0d1f17; color: #f1ede2; font-family: Georgia, serif; padding: 20px; }
-.panel { background: #15301f; border: 1px solid #2a4a36; padding: 20px; margin: 20px 0; max-width: 600px; }
+.panel { background: #15301f; border: 1px solid #2a4a36; padding: 20px; margin: 20px 0; max-width: 100%; }
 h1 { font-size: 32px; }
 h2 { font-size: 18px; margin: 0 0 15px 0; }
-label { display: block; font-size: 13px; margin: 10px 0 5px 0; color: #b9c4ba; }
-input { width: 100%; padding: 8px; background: #0d1f17; border: 1px solid #2a4a36; color: #f1ede2; margin: 5px 0 15px 0; }
+label { display: block; font-size: 12px; margin: 8px 0 4px 0; color: #b9c4ba; }
+input { width: 100%; padding: 6px; background: #0d1f17; border: 1px solid #2a4a36; color: #f1ede2; margin: 4px 0 10px 0; font-size: 12px; }
 button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border: none; margin: 10px 0; cursor: pointer; font-weight: bold; }
-.score { font-size: 72px; text-align: center; color: #d4a843; margin: 20px 0; }
+.score { font-size: 64px; text-align: center; color: #d4a843; margin: 20px 0; }
 #breakdown { font-size: 11px; color: #b9c4ba; line-height: 1.8; }
 #status { font-size: 11px; color: #b9c4ba; }
 #fixtures { font-size: 11px; border: 1px solid #2a4a36; padding: 10px; margin: 10px 0; }
+.container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+.team-section { background: #15301f; border: 1px solid #2a4a36; padding: 15px; }
+.team-section h3 { font-size: 14px; margin: 0 0 10px 0; color: #d4a843; }
+@media (max-width: 1000px) { .container { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -32,42 +35,55 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
   <div id="fixtures"></div>
 </div>
 
-<div class="panel">
-  <h2>Match Data & Bias Analysis</h2>
-  <label>Home Team: <input type="text" id="home" value="Turkey"></label>
-  <label>Away Team: <input type="text" id="away" value="Brazil"></label>
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+  <div>
+    <div class="panel">
+      <h2>Match & Referee Decisions</h2>
+      <label>Match ID: <input type="text" id="matchid" value="Match-001"></label>
+      <label>Home Team: <input type="text" id="home" value="Turkey"></label>
+      <label>Away Team: <input type="text" id="away" value="Brazil"></label>
+      
+      <div class="container">
+        <div class="team-section">
+          <h3>🏠 Home Team</h3>
+          <label>Yellow Cards: <input type="number" id="hy" value="2" style="width:100%;"></label>
+          <label>Red Cards: <input type="number" id="hr" value="0" style="width:100%;"></label>
+          <label>Corners: <input type="number" id="hc" value="5" style="width:100%;"></label>
+          <label>Throws: <input type="number" id="ht" value="8" style="width:100%;"></label>
+          <label>Offsides: <input type="number" id="ho" value="1" style="width:100%;"></label>
+          <label>Penalties: <input type="number" id="hp" value="1" style="width:100%;"></label>
+        </div>
+        
+        <div class="team-section">
+          <h3>✈️ Away Team</h3>
+          <label>Yellow Cards: <input type="number" id="ay" value="5" style="width:100%;"></label>
+          <label>Red Cards: <input type="number" id="ar" value="0" style="width:100%;"></label>
+          <label>Corners: <input type="number" id="ac" value="3" style="width:100%;"></label>
+          <label>Throws: <input type="number" id="at" value="6" style="width:100%;"></label>
+          <label>Offsides: <input type="number" id="ao" value="2" style="width:100%;"></label>
+          <label>Penalties: <input type="number" id="ap" value="0" style="width:100%;"></label>
+        </div>
+      </div>
+      
+      <button onclick="calc()" style="margin-top: 15px;">Calculate Bias Score</button>
+    </div>
+  </div>
   
-  <label style="margin-top:10px; font-weight:bold;">Home Team:</label>
-  <label>Yellow Cards: <input type="number" id="hy" value="2"></label>
-  <label>Red Cards: <input type="number" id="hr" value="0"></label>
-  <label>Corners: <input type="number" id="hc" value="5"></label>
-  <label>Throws: <input type="number" id="ht" value="8"></label>
-  <label>Offsides: <input type="number" id="ho" value="1"></label>
-  <label>Penalties: <input type="number" id="hp" value="1"></label>
-  
-  <label style="margin-top:10px; font-weight:bold;">Away Team:</label>
-  <label>Yellow Cards: <input type="number" id="ay" value="5"></label>
-  <label>Red Cards: <input type="number" id="ar" value="0"></label>
-  <label>Corners: <input type="number" id="ac" value="3"></label>
-  <label>Throws: <input type="number" id="at" value="6"></label>
-  <label>Offsides: <input type="number" id="ao" value="2"></label>
-  <label>Penalties: <input type="number" id="ap" value="0"></label>
-  
-  <button onclick="calc()">Calculate Bias Score</button>
-</div>
-
-<div class="panel">
-  <h2>Fairness Score</h2>
-  <div class="score" id="score">50</div>
-  <div id="breakdown"></div>
-</div>
-
-<div class="panel">
-  <h2>Solana Devnet</h2>
-  <button onclick="connect()">Connect Phantom</button>
-  <div id="wallet" style="color:#d4a843;"></div>
-  <button onclick="submit()">Write Score to Chain</button>
-  <div id="status"></div>
+  <div>
+    <div class="panel">
+      <h2>Fairness Score</h2>
+      <div class="score" id="score">50</div>
+      <div id="breakdown"></div>
+      
+      <div style="margin-top: 20px;">
+        <h2>Solana Devnet</h2>
+        <button onclick="connect()">Connect Phantom</button>
+        <div id="wallet" style="color:#d4a843; margin:10px 0; font-size:11px;"></div>
+        <button onclick="submit()">Write Score to Chain</button>
+        <div id="status" style="margin-top: 10px;"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -75,17 +91,17 @@ let s = 50;
 
 async function loadFixtures() {
   try {
-    log('Loading fixtures...');
+    log('Loading fixtures...', false);
     const res = await fetch('/api/txline/fixtures');
     const data = await res.json();
-    log('✓ Loaded ' + data.fixtures.length + ' matches');
+    log('✓ Loaded ' + data.fixtures.length + ' matches', false);
     let html = '';
     data.fixtures.forEach(m => {
       html += '<div style="padding:8px; border-bottom:1px solid #2a4a36;"><strong>' + m.home_team + ' vs ' + m.away_team + '</strong> - ' + m.status + '</div>';
     });
     document.getElementById('fixtures').innerHTML = html;
   } catch(e) {
-    log('✗ ' + e.message);
+    log('✗ ' + e.message, false);
   }
 }
 
@@ -104,81 +120,75 @@ function calc() {
   const ao = +document.getElementById('ao').value || 0;
   const ap = +document.getElementById('ap').value || 0;
   
-  // Card bias (Yellow + Red*3)
   const hCards = hy + (hr * 3);
   const aCards = ay + (ar * 3);
   const totalCards = hCards + aCards;
   const cardScore = totalCards === 0 ? 50 : (aCards / totalCards) * 100;
   
-  // Corner bias
   const totalCorners = hc + ac;
   const cornerScore = totalCorners === 0 ? 50 : (ac / totalCorners) * 100;
   
-  // Throw bias
   const totalThrows = ht + at;
   const throwScore = totalThrows === 0 ? 50 : (at / totalThrows) * 100;
   
-  // Offside bias
   const totalOffsides = ho + ao;
   const offsideScore = totalOffsides === 0 ? 50 : (ao / totalOffsides) * 100;
   
-  // Penalty bias
   const totalPenalties = hp + ap;
   const penaltyScore = totalPenalties === 0 ? 50 : (ap / totalPenalties) * 100;
   
-  // Final score (weighted)
-  s = Math.round(
-    (cardScore * 0.3) +
-    (cornerScore * 0.2) +
-    (throwScore * 0.1) +
-    (offsideScore * 0.2) +
-    (penaltyScore * 0.2)
-  );
+  s = Math.round((cardScore * 0.3) + (cornerScore * 0.2) + (throwScore * 0.1) + (offsideScore * 0.2) + (penaltyScore * 0.2));
   
   document.getElementById('score').textContent = s;
   document.getElementById('breakdown').innerHTML = 
-    '<strong>Metrics:</strong><br>' +
-    'Cards: ' + cardScore.toFixed(1) + '% (×0.3)<br>' +
-    'Corners: ' + cornerScore.toFixed(1) + '% (×0.2)<br>' +
-    'Throws: ' + throwScore.toFixed(1) + '% (×0.1)<br>' +
-    'Offsides: ' + offsideScore.toFixed(1) + '% (×0.2)<br>' +
-    'Penalties: ' + penaltyScore.toFixed(1) + '% (×0.2)<br>' +
-    '<strong style="color:#d4a843;">Final: ' + s + '</strong>';
+    '<div style="font-size:11px;"><strong>Metrics:</strong></div>' +
+    '<div>🟨 Cards: ' + cardScore.toFixed(1) + '% (×0.3)</div>' +
+    '<div>⚽ Corners: ' + cornerScore.toFixed(1) + '% (×0.2)</div>' +
+    '<div>🎯 Throws: ' + throwScore.toFixed(1) + '% (×0.1)</div>' +
+    '<div>🔄 Offsides: ' + offsideScore.toFixed(1) + '% (×0.2)</div>' +
+    '<div>📍 Penalties: ' + penaltyScore.toFixed(1) + '% (×0.2)</div>' +
+    '<div style="margin-top:10px; color:#d4a843;"><strong>Final: ' + s + '</strong></div>';
   
-  log('✓ Score: ' + s);
+  log('✓ Calculated: ' + s, false);
 }
 
 async function connect() {
   try {
-    log('Connecting Phantom...');
+    log('Connecting Phantom...', true);
     let found = false;
     for (let i = 0; i < 50; i++) {
       if (window.solana) { found = true; break; }
       await new Promise(r => setTimeout(r, 100));
     }
-    if (!found) { log('✗ Phantom not found'); return; }
+    if (!found) { log('✗ Phantom not found', true); return; }
     const r = await window.solana.connect();
     document.getElementById('wallet').textContent = '✓ ' + r.publicKey.toString().slice(0,8) + '...';
-    log('✓ Connected');
+    log('✓ Connected', true);
   } catch(e) {
-    log('✗ ' + e.message);
+    log('✗ ' + e.message, true);
   }
 }
 
 function submit() {
   if (!document.getElementById('wallet').textContent) {
-    log('✗ Connect first');
+    log('✗ Connect first', true);
     return;
   }
   const tx = 'TX' + Math.random().toString(36).substring(2, 20);
-  log('✓ Submitted: ' + tx);
+  log('✓ TX: ' + tx, true);
 }
 
-function log(msg) {
+function log(msg, bottom = false) {
   const div = document.createElement('div');
   div.style.margin = '5px 0';
   div.innerHTML = msg;
-  document.getElementById('status').appendChild(div);
+  const status = document.getElementById('status');
+  if (bottom) {
+    status.appendChild(div);
+  } else {
+    const fixtures = document.getElementById('fixtures');
+    fixtures.insertAdjacentElement('afterend', div);
+  }
 }
 
 calc();
@@ -197,7 +207,6 @@ def get_fixtures():
         {'home_team': 'Turkey', 'away_team': 'Brazil', 'status': 'scheduled'},
         {'home_team': 'Argentina', 'away_team': 'France', 'status': 'scheduled'},
         {'home_team': 'Germany', 'away_team': 'England', 'status': 'live'},
-        {'home_team': 'Spain', 'away_team': 'Netherlands', 'status': 'finished'},
     ]
     return jsonify({'fixtures': fixtures})
 
