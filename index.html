@@ -66,6 +66,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
     <div class="panel">
       <h2>Fairness Score</h2>
       <div class="score" id="score">50</div>
+      <div id="verdict"></div>
       <div id="breakdown"></div>
       <div style="margin-top:20px;">
         <h2>Solana Devnet</h2>
@@ -153,21 +154,37 @@ document.getElementById("calcBtn").addEventListener("click", function() {
   s = Math.round(
     (cardScore * 0.25) +
     (cornerScore * 0.15) +
-    (throwScore * 0.1) +
+    (throwScore * 0.10) +
     (offsideScore * 0.15) +
-    (penaltyScore * 0.2) +
+    (penaltyScore * 0.20) +
     (foulScore * 0.15)
   );
 
   document.getElementById("score").textContent = s;
+
+  var home = document.getElementById("home").value;
+  var away = document.getElementById("away").value;
+  var verdict = "";
+
+  if (s >= 65) {
+    verdict = "<div style='margin-top:10px; padding:10px; background:#1a3a1a; border:1px solid #d4a843; color:#d4a843; text-align:center; font-weight:bold;'>HOME TEAM FAVORED (" + home + ")</div>";
+  } else if (s <= 35) {
+    verdict = "<div style='margin-top:10px; padding:10px; background:#3a1a1a; border:1px solid #e05555; color:#e05555; text-align:center; font-weight:bold;'>AWAY TEAM FAVORED (" + away + ")</div>";
+  } else {
+    verdict = "<div style='margin-top:10px; padding:10px; background:#1a2a1a; border:1px solid #4a7a4a; color:#6abf6a; text-align:center; font-weight:bold;'>FAIR MATCH</div>";
+  }
+
+  document.getElementById("verdict").innerHTML = verdict;
+
   document.getElementById("breakdown").innerHTML =
-    "Cards: " + cardScore.toFixed(1) + "% (x0.25)<br>" +
+    "<br>Cards: " + cardScore.toFixed(1) + "% (x0.25)<br>" +
     "Corners: " + cornerScore.toFixed(1) + "% (x0.15)<br>" +
     "Throws: " + throwScore.toFixed(1) + "% (x0.10)<br>" +
     "Offsides: " + offsideScore.toFixed(1) + "% (x0.15)<br>" +
     "Penalties: " + penaltyScore.toFixed(1) + "% (x0.20)<br>" +
     "Fouls: " + foulScore.toFixed(1) + "% (x0.15)<br>" +
     "<strong style='color:#d4a843;'>Final: " + s + "</strong>";
+
   log("Score: " + s);
 });
 
