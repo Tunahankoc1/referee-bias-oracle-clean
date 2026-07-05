@@ -27,3 +27,5 @@ def get_fixtures():
             
     except Exception as e:
         return jsonify({'error': str(e), 'fixtures': []}), 500
+# Vercel handler
+handler = app
