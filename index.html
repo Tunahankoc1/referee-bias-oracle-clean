@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Referee Bias Oracle</title>
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 <style>
 body { background: #0d1f17; color: #f1ede2; font-family: Georgia, serif; padding: 20px; }
 .panel { background: #15301f; border: 1px solid #2a4a36; padding: 20px; margin: 20px 0; }
@@ -159,19 +160,14 @@ document.getElementById("calcBtn").addEventListener("click", function() {
   var aCards = ay + (ar * 3);
   var totalCards = hCards + aCards;
   var cardScore = totalCards === 0 ? 50 : (aCards / totalCards) * 100;
-
   var totalCorners = hc + ac;
   var cornerScore = totalCorners === 0 ? 50 : (ac / totalCorners) * 100;
-
   var totalThrows = ht + at;
   var throwScore = totalThrows === 0 ? 50 : (at / totalThrows) * 100;
-
   var totalOffsides = ho + ao;
   var offsideScore = totalOffsides === 0 ? 50 : (ao / totalOffsides) * 100;
-
   var totalPenalties = hp + ap;
   var penaltyScore = totalPenalties === 0 ? 50 : (ap / totalPenalties) * 100;
-
   var totalFouls = hf + af;
   var foulScore = totalFouls === 0 ? 50 : (af / totalFouls) * 100;
 
@@ -208,7 +204,7 @@ document.getElementById("calcBtn").addEventListener("click", function() {
     "Fouls: " + foulScore.toFixed(1) + "% (x0.15)<br>" +
     "<strong style='color:#d4a843;'>Final: " + s + "</strong>";
 
-  log("Score: " + s);
+  log("Score calculated: " + s);
 });
 
 document.getElementById("connectBtn").addEventListener("click", function() {
@@ -229,10 +225,52 @@ document.getElementById("connectBtn").addEventListener("click", function() {
   }, 100);
 });
 
-document.getElementById("submitBtn").addEventListener("click", function() {
-  if (!document.getElementById("wallet").textContent) { log("Connect first"); return; }
-  var tx = "TX" + Math.random().toString(36).substring(2,20);
-  log("Written to chain: " + tx);
+document.getElementById("submitBtn").addEventListener("click", async function() {
+  if (!document.getElementById("wallet").textContent) {
+    log("Connect first");
+    return;
+  }
+
+  try {
+    log("Preparing transaction...");
+
+    var connection = new solanaWeb3.Connection(
+      "https://api.devnet.solana.com",
+      "confirmed"
+    );
+
+    var provider = window.solana;
+    var pubkey = provider.publicKey;
+
+    var home = document.getElementById("home").value;
+    var away = document.getElementById("away").value;
+    var matchid = document.getElementById("matchid").value;
+    var memo = "RefereeOracle:" + matchid + ":" + home + "vs" + away + ":score=" + s;
+
+    var tx = new solanaWeb3.Transaction().add(
+      new solanaWeb3.TransactionInstruction({
+        keys: [{ pubkey: pubkey, isSigner: true, isWritable: false }],
+        programId: new solanaWeb3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+        data: Buffer.from(memo)
+      })
+    );
+
+    tx.feePayer = pubkey;
+    var blockhashInfo = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhashInfo.blockhash;
+
+    log("Waiting for signature...");
+    var signed = await provider.signTransaction(tx);
+    var txid = await connection.sendRawTransaction(signed.serialize());
+
+    log("✓ Written to chain!");
+    log("Match: " + home + " vs " + away);
+    log("Score: " + s);
+    log('<a style="color:#d4a843;" href="https://explorer.solana.com/tx/' + txid + '?cluster=devnet" target="_blank">' + txid.slice(0,20) + "...</a>");
+
+  } catch(e) {
+    log("Error: " + e.message);
+  }
 });
 
 function log(msg) {
