@@ -91,7 +91,6 @@ var txlineJwt = null;
 var API_TOKEN = "txoracle_api_e44c346212fe433c8b42b4bae17ce33d";
 var TXLINE = "https://txline-dev.txodds.com";
 
-// Hardcoded World Cup fixtures
 var FIXTURES = [
   { id: 18187298, home: "Brazil", away: "Norway" },
   { id: 18192996, home: "Mexico", away: "England" },
@@ -114,7 +113,6 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
   try {
     var jwt = await getTxLineJwt();
 
-    // Try snapshot first for live status
     var snapshotRes = await fetch(TXLINE + "/api/fixtures/snapshot", {
       headers: {
         "Authorization": "Bearer " + jwt,
@@ -123,16 +121,12 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
     });
     var snapshotData = await snapshotRes.json();
     var liveIds = {};
-    snapshotData.forEach(function(f) {
-      liveIds[f.FixtureId] = f.GameState;
-    });
+    snapshotData.forEach(function(f) { liveIds[f.FixtureId] = f.GameState; });
 
     var html = "<div style='color:#d4a843; margin-bottom:8px;'>✓ " + FIXTURES.length + " World Cup matches | Click to load stats</div>";
-    
     FIXTURES.forEach(function(f) {
       var isLive = liveIds[f.id] === 1;
-      var isFinished = !liveIds[f.id] && liveIds[f.id] !== undefined;
-      
+      var isFinished = liveIds[f.id] === undefined || liveIds[f.id] === null;
       html += "<div class='fixture-item' data-id='" + f.id + "' data-home='" + f.home + "' data-away='" + f.away + "'>";
       html += "<strong>" + f.home + " vs " + f.away + "</strong>";
       if (isLive) html += "<span class='live-badge'>LIVE</span>";
@@ -165,21 +159,44 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
 async function loadStats(fixtureId) {
   try {
     var jwt = await getTxLineJwt();
-    
+
     var res = await fetch(TXLINE + "/api/scores/historical/" + fixtureId, {
       headers: {
         "Authorization": "Bearer " + jwt,
-        "X-Api-Token": API_TOKEN
+        "X-Api-Token": API_TOKEN,
+        "Accept": "text/event-stream"
       }
     });
-    var data = await res.json();
 
-    if (!data || data.length === 0) {
+    var text = await res.text();
+
+    if (!text || text.trim() === "") {
       log("No stats yet — match may not have started");
       return;
     }
 
-    log("✓ " + data.length + " events from TxLINE");
+    log("Raw sample: " + text.slice(0, 150));
+
+    // Parse SSE format: "data: {...}\n\n"
+    var events = [];
+    var lines = text.split("\n");
+    lines.forEach(function(line) {
+      line = line.trim();
+      if (line.startsWith("data: ")) {
+        try {
+          var json = JSON.parse(line.slice(6));
+          events.push(json);
+        } catch(e) {}
+      }
+    });
+
+    if (events.length === 0) {
+      log("No events parsed yet");
+      return;
+    }
+
+    log("✓ " + events.length + " events from TxLINE");
+    log("Sample event: " + JSON.stringify(events[0]).slice(0, 200));
 
     var homeYellow = 0, awayYellow = 0;
     var homeRed = 0, awayRed = 0;
@@ -188,8 +205,8 @@ async function loadStats(fixtureId) {
     var homeOffsides = 0, awayOffsides = 0;
     var homePenalties = 0, awayPenalties = 0;
 
-    data.forEach(function(event) {
-      var type = (event.Type || event.type || event.EventType || "").toLowerCase();
+    events.forEach(function(event) {
+      var type = (event.Type || event.type || event.EventType || event.ScoreType || "").toLowerCase();
       var isHome = event.Participant === 1 || event.Team === 1 || event.participant === 1;
 
       if (type.includes("yellow") || type === "yc") { isHome ? homeYellow++ : awayYellow++; }
@@ -214,7 +231,6 @@ async function loadStats(fixtureId) {
     document.getElementById("ap").value = awayPenalties;
 
     log("✓ Stats auto-filled from TxLINE!");
-    log("Events: " + JSON.stringify(data[0]).slice(0, 150));
 
   } catch(e) {
     log("Stats error: " + e.message);
