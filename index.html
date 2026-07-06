@@ -20,6 +20,7 @@ button { width: 100%; padding: 12px; background: #d4a843; color: #0d1f17; border
 .fixture-item { padding: 8px; border-bottom: 1px solid #2a4a36; cursor: pointer; }
 .fixture-item:hover { background: #1a3a2a; }
 .live-badge { background: #10b981; color: #000; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
+.finished-badge { background: #6b7280; color: #fff; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 </style>
 </head>
 <body>
@@ -90,8 +91,18 @@ var txlineJwt = null;
 var API_TOKEN = "txoracle_api_e44c346212fe433c8b42b4bae17ce33d";
 var TXLINE = "https://txline-dev.txodds.com";
 
+// Hardcoded World Cup fixtures
+var FIXTURES = [
+  { id: 18187298, home: "Brazil", away: "Norway" },
+  { id: 18192996, home: "Mexico", away: "England" },
+  { id: 18193785, home: "USA", away: "Belgium" },
+  { id: 18198205, home: "Portugal", away: "Spain" },
+  { id: 18202701, home: "Argentina", away: "Egypt" },
+  { id: 18202783, home: "Switzerland", away: "Colombia" },
+  { id: 18209181, home: "France", away: "Morocco" }
+];
+
 async function getTxLineJwt() {
-  if (txlineJwt) return txlineJwt;
   var res = await fetch(TXLINE + "/auth/guest/start", { method: "POST" });
   var data = await res.json();
   txlineJwt = data.token;
@@ -102,24 +113,34 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
   document.getElementById("fixtures").innerHTML = "Loading from TxLINE...";
   try {
     var jwt = await getTxLineJwt();
-    var res = await fetch(TXLINE + "/api/fixtures/snapshot", {
+
+    // Try snapshot first for live status
+    var snapshotRes = await fetch(TXLINE + "/api/fixtures/snapshot", {
       headers: {
         "Authorization": "Bearer " + jwt,
         "X-Api-Token": API_TOKEN
       }
     });
-    var data = await res.json();
-    var fixtures = data.filter(function(f) { return f.Competition === "World Cup"; });
+    var snapshotData = await snapshotRes.json();
+    var liveIds = {};
+    snapshotData.forEach(function(f) {
+      liveIds[f.FixtureId] = f.GameState;
+    });
 
-    var html = "<div style='color:#d4a843; margin-bottom:8px;'>✓ " + fixtures.length + " World Cup matches from TxLINE</div>";
-    fixtures.forEach(function(f) {
-      var isLive = f.GameState === 1;
-      html += "<div class='fixture-item' data-id='" + f.FixtureId + "' data-home='" + f.Participant1 + "' data-away='" + f.Participant2 + "'>";
-      html += "<strong>" + f.Participant1 + " vs " + f.Participant2 + "</strong>";
+    var html = "<div style='color:#d4a843; margin-bottom:8px;'>✓ " + FIXTURES.length + " World Cup matches | Click to load stats</div>";
+    
+    FIXTURES.forEach(function(f) {
+      var isLive = liveIds[f.id] === 1;
+      var isFinished = !liveIds[f.id] && liveIds[f.id] !== undefined;
+      
+      html += "<div class='fixture-item' data-id='" + f.id + "' data-home='" + f.home + "' data-away='" + f.away + "'>";
+      html += "<strong>" + f.home + " vs " + f.away + "</strong>";
       if (isLive) html += "<span class='live-badge'>LIVE</span>";
-      html += "<small style='color:#b9c4ba; margin-left:8px;'>ID: " + f.FixtureId + "</small>";
+      else if (isFinished) html += "<span class='finished-badge'>FINISHED</span>";
+      else html += "<span style='color:#b9c4ba; font-size:10px; margin-left:8px;'>Scheduled</span>";
       html += "</div>";
     });
+
     document.getElementById("fixtures").innerHTML = html;
 
     document.querySelectorAll(".fixture-item").forEach(function(el) {
@@ -130,7 +151,7 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
         document.getElementById("home").value = home;
         document.getElementById("away").value = away;
         document.getElementById("matchid").value = fixtureId;
-        log("Selected: " + home + " vs " + away + " (ID: " + fixtureId + ")");
+        log("Selected: " + home + " vs " + away);
         log("Loading stats from TxLINE...");
         await loadStats(fixtureId);
       });
@@ -144,6 +165,7 @@ document.getElementById("loadBtn").addEventListener("click", async function() {
 async function loadStats(fixtureId) {
   try {
     var jwt = await getTxLineJwt();
+    
     var res = await fetch(TXLINE + "/api/scores/historical/" + fixtureId, {
       headers: {
         "Authorization": "Bearer " + jwt,
@@ -157,10 +179,8 @@ async function loadStats(fixtureId) {
       return;
     }
 
-    log("✓ Stats loaded from TxLINE!");
-    log("Raw data: " + JSON.stringify(data).slice(0, 200));
+    log("✓ " + data.length + " events from TxLINE");
 
-    // Parse stats
     var homeYellow = 0, awayYellow = 0;
     var homeRed = 0, awayRed = 0;
     var homeCorners = 0, awayCorners = 0;
@@ -169,14 +189,11 @@ async function loadStats(fixtureId) {
     var homePenalties = 0, awayPenalties = 0;
 
     data.forEach(function(event) {
-      var type = (event.Type || event.type || "").toLowerCase();
-      var team = event.Team || event.team || event.Participant || "";
-      var homeTeam = document.getElementById("home").value;
+      var type = (event.Type || event.type || event.EventType || "").toLowerCase();
+      var isHome = event.Participant === 1 || event.Team === 1 || event.participant === 1;
 
-      var isHome = team === homeTeam || team === "1" || team === 1;
-
-      if (type.includes("yellow")) { isHome ? homeYellow++ : awayYellow++; }
-      if (type.includes("red")) { isHome ? homeRed++ : awayRed++; }
+      if (type.includes("yellow") || type === "yc") { isHome ? homeYellow++ : awayYellow++; }
+      if (type.includes("red") || type === "rc") { isHome ? homeRed++ : awayRed++; }
       if (type.includes("corner")) { isHome ? homeCorners++ : awayCorners++; }
       if (type.includes("foul")) { isHome ? homeFouls++ : awayFouls++; }
       if (type.includes("offside")) { isHome ? homeOffsides++ : awayOffsides++; }
@@ -197,6 +214,7 @@ async function loadStats(fixtureId) {
     document.getElementById("ap").value = awayPenalties;
 
     log("✓ Stats auto-filled from TxLINE!");
+    log("Events: " + JSON.stringify(data[0]).slice(0, 150));
 
   } catch(e) {
     log("Stats error: " + e.message);
